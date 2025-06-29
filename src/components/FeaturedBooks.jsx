@@ -20,13 +20,7 @@ const FeaturedBooks = () => {
         const featuredResponse = await fetch('http://localhost:3000/api/featured-content/featured_books');
         if (featuredResponse.ok) {
           const featuredData = await featuredResponse.json();
-          console.log('🎯 DEBUG: Featured books data received:', featuredData.map(book => ({
-            title: book.title,
-            is_discount_active: book.is_discount_active,
-            discount_percentage: book.discount_percentage,
-            discounted_price: book.discounted_price,
-            price: book.price
-          })));
+
           if (featuredData && featuredData.length > 0) {
             setBooks(featuredData.slice(0, 7)); // Limit to 7 for slider
             setLoading(false);
@@ -117,15 +111,7 @@ const FeaturedBooks = () => {
           ref={sliderRef}
           className="flex overflow-x-auto gap-6 scroll-smooth snap-x snap-mandatory pb-2 hide-scrollbar"
         >
-                  {books.map((book) => {
-          console.log(`🔍 Rendering book ${book.title}:`, {
-            is_discount_active: book.is_discount_active,
-            discount_percentage: book.discount_percentage,
-            discounted_price: book.discounted_price,
-            price: book.price
-          });
-          
-          return (
+                  {books.map((book) => (
             <div
               key={book.id}
               onClick={() => navigate(`/product/${book.id}`)}
@@ -197,8 +183,7 @@ const FeaturedBooks = () => {
 
               </div>
             </div>
-          );
-        })}
+          ))}
         </div>
       </div>
     </section>
