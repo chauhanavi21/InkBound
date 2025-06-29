@@ -11,11 +11,11 @@ const BookCard = ({ book }) => {
 
   // Get the main image path - works with both database and static data
   const getImagePath = () => {
-    if (book.images && book.images.length > 0) {
-      return `http://localhost:3000/${book.images[0]}`;
-    }
     if (book.image_path) {
       return `http://localhost:3000/${book.image_path}`;
+    }
+    if (book.images && book.images.length > 0) {
+      return `http://localhost:3000/${book.images[0]}`;
     }
     if (book.img) {
       return book.img;

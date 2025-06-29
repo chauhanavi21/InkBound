@@ -24,7 +24,7 @@ if (!process.env.OPENAI_API_KEY) {
 console.log('✅ Environment variables loaded successfully');
 console.log(`✅ OpenAI API Key: ${process.env.OPENAI_API_KEY.substring(0, 20)}...`);
 
-import { initializeDatabase, insertBook, getAllBooks, updateBook, deleteBook } from './database.js';
+import { initializeDatabase, insertBook, getAllBooks, updateBook, deleteBook, getFeaturedContent, setFeaturedContent, addFeaturedContent, removeFeaturedContent, removeFeaturedContentItem, getFeaturedBooksByType, getFeaturedAuthor } from './database.js';
 import { analyzeBookImage } from './openai-service.js';
 
 const app = express();
@@ -207,6 +207,123 @@ app.delete('/api/books/:id', async (req, res) => {
     } catch (error) {
         console.error('Error deleting book:', error);
         res.status(500).json({ error: 'Failed to delete book' });
+    }
+});
+
+// Featured Content Management API Endpoints
+
+// Get all featured content
+app.get('/api/featured-content', async (req, res) => {
+    try {
+        const featuredContent = await getFeaturedContent();
+        res.json(featuredContent);
+    } catch (error) {
+        console.error('Error fetching featured content:', error);
+        res.status(500).json({ error: 'Failed to fetch featured content' });
+    }
+});
+
+// Get featured books by type
+app.get('/api/featured-content/:type', async (req, res) => {
+    try {
+        const { type } = req.params;
+        const books = await getFeaturedBooksByType(type);
+        res.json(books);
+    } catch (error) {
+        console.error('Error fetching featured books:', error);
+        res.status(500).json({ error: 'Failed to fetch featured books' });
+    }
+});
+
+// Get featured author
+app.get('/api/featured-author', async (req, res) => {
+    try {
+        const author = await getFeaturedAuthor();
+        res.json(author);
+    } catch (error) {
+        console.error('Error fetching featured author:', error);
+        res.status(500).json({ error: 'Failed to fetch featured author' });
+    }
+});
+
+// Add featured content (without replacing existing)
+app.post('/api/featured-content', async (req, res) => {
+    try {
+        const { type, bookId, authorName, authorPhotoPath } = req.body;
+        
+        if (!type) {
+            return res.status(400).json({ error: 'Type is required' });
+        }
+        
+        const id = await addFeaturedContent(type, bookId, authorName, authorPhotoPath);
+        res.json({ success: true, id, message: `Featured content added for ${type}` });
+    } catch (error) {
+        console.error('Error adding featured content:', error);
+        res.status(500).json({ error: 'Failed to add featured content' });
+    }
+});
+
+// Set featured content (replace existing - for featured author)
+app.post('/api/featured-content/replace', async (req, res) => {
+    try {
+        const { type, bookId, authorName, authorPhotoPath } = req.body;
+        
+        if (!type) {
+            return res.status(400).json({ error: 'Type is required' });
+        }
+        
+        const id = await setFeaturedContent(type, bookId, authorName, authorPhotoPath);
+        res.json({ success: true, id, message: `Featured content set for ${type}` });
+    } catch (error) {
+        console.error('Error setting featured content:', error);
+        res.status(500).json({ error: 'Failed to set featured content' });
+    }
+});
+
+// Upload author photo
+app.post('/api/upload-author-photo', upload.single('authorPhoto'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image file uploaded' });
+        }
+
+        const imagePath = req.file.path;
+        
+        res.json({
+            success: true,
+            imagePath: imagePath,
+            message: 'Author photo uploaded successfully'
+        });
+    } catch (error) {
+        console.error('Error uploading author photo:', error);
+        res.status(500).json({ 
+            error: 'Failed to upload author photo', 
+            message: error.message 
+        });
+    }
+});
+
+// Remove individual featured content item
+app.delete('/api/featured-content/item/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await removeFeaturedContentItem(id);
+        res.json({ success: true, message: `Featured content item removed` });
+    } catch (error) {
+        console.error('Error removing featured content item:', error);
+        res.status(500).json({ error: 'Failed to remove featured content item' });
+    }
+});
+
+// Remove all featured content of a type
+app.delete('/api/featured-content/:type', async (req, res) => {
+    try {
+        const { type } = req.params;
+        await removeFeaturedContent(type);
+        res.json({ success: true, message: `Featured content removed for ${type}` });
+    } catch (error) {
+        console.error('Error removing featured content:', error);
+        res.status(500).json({ error: 'Failed to remove featured content' });
     }
 });
 

@@ -6,7 +6,6 @@ import BookCard from '../components/BookCard';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
-const categories = ['Fiction', 'Romance', 'Thriller', 'Science & Technology', 'Non-Fiction'];
 const priceRanges = [
   { label: 'Under $50', min: 0, max: 50 },
   { label: '$50 to $200', min: 50, max: 200 },
@@ -35,6 +34,17 @@ const ShoppingPage = () => {
   const [selectedPrice, setSelectedPrice] = useState(null);
   const [searchTerm, setSearchTerm] = useState(query);
 
+  // Dynamically generate categories from the loaded book data
+  const availableCategories = React.useMemo(() => {
+    const uniqueCategories = [...new Set(
+      books
+        .map(book => book.genre || book.category)
+        .filter(Boolean)
+    )].sort();
+    console.log('Available categories from data:', uniqueCategories);
+    return uniqueCategories;
+  }, [books]);
+
   useEffect(() => {
     fetchBooks();
   }, []);
@@ -54,6 +64,7 @@ const ShoppingPage = () => {
       console.error('Error fetching books, using static data:', error);
       // Fallback to static data if API fails
       setBooks(staticBooks);
+      console.log('Loaded static books:', staticBooks.length, 'books');
     } finally {
       setLoading(false);
     }
@@ -71,10 +82,10 @@ const ShoppingPage = () => {
 
     if (matchedBook) {
       navigate(`/product/${matchedBook.id}`);
-    } else if (categories.map((c) => c.toLowerCase()).includes(searchTerm)) {
+    } else if (availableCategories.map((c) => c.toLowerCase()).includes(searchTerm)) {
       setSelectedCategories([capitalize(searchTerm)]);
     }
-  }, [searchTerm, books]);
+  }, [searchTerm, books, availableCategories]);
 
   const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
@@ -93,10 +104,14 @@ const ShoppingPage = () => {
   const filteredBooks = books.filter((book) => {
     const price = parsePrice(book.price);
     const bookCategory = book.genre || book.category;
-    const matchCategory =
-      selectedCategories.length === 0 || selectedCategories.includes(bookCategory);
-    const matchPrice =
-      !selectedPrice || (price >= selectedPrice.min && price <= selectedPrice.max);
+    
+    // Handle books without categories - they should show when no category filter is selected
+    const matchCategory = selectedCategories.length === 0 || 
+                         (bookCategory && selectedCategories.includes(bookCategory));
+    
+    const matchPrice = !selectedPrice || (price >= selectedPrice.min && price <= selectedPrice.max);
+
+
 
     return matchCategory && matchPrice;
   });
@@ -149,17 +164,21 @@ const ShoppingPage = () => {
             <div className="mb-6">
               <h4 className="text-md font-semibold mb-2">Category</h4>
               <div className="space-y-2 text-sm text-gray-700">
-                {categories.map((cat) => (
-                  <div key={cat}>
-                    <input
-                      type="checkbox"
-                      className="mr-2"
-                      checked={selectedCategories.includes(cat)}
-                      onChange={() => handleCategoryChange(cat)}
-                    />
-                    {cat}
-                  </div>
-                ))}
+                {availableCategories.length > 0 ? (
+                  availableCategories.map((cat) => (
+                    <div key={cat}>
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={selectedCategories.includes(cat)}
+                        onChange={() => handleCategoryChange(cat)}
+                      />
+                      {cat}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-500 text-xs">Loading categories...</div>
+                )}
               </div>
             </div>
 
