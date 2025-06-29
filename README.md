@@ -131,7 +131,7 @@ vercel deploy
 
 ## 👩‍💻 Contributions
 
-This project is in active development. Contributions, ideas, and improvements are welcome!
+Avi Chauhan and Ishan Pathak
 
 ---
 
