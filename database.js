@@ -43,6 +43,25 @@ function initializeDatabase() {
                 } else {
                     console.log('Books table initialized successfully');
                     
+                    // Create users table
+                    db.run(`
+                        CREATE TABLE IF NOT EXISTS users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT UNIQUE NOT NULL,
+                            email TEXT UNIQUE NOT NULL,
+                            password_hash TEXT NOT NULL,
+                            role TEXT DEFAULT 'user',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `, (err) => {
+                        if (err) {
+                            console.error('Error creating users table:', err);
+                        } else {
+                            console.log('Users table initialized successfully');
+                        }
+                    });
+                    
                     // Create featured content table
                     db.run(`
                         CREATE TABLE IF NOT EXISTS featured_content (
@@ -581,6 +600,170 @@ function getFeaturedAuthor() {
     });
 }
 
+// User Authentication Functions
+
+// Create a new user
+function createUser(userData) {
+    return new Promise((resolve, reject) => {
+        const { username, email, password_hash, role = 'user' } = userData;
+        
+        const query = `
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        `;
+        
+        db.run(query, [username, email, password_hash, role], function(err) {
+            if (err) {
+                console.error('Error creating user:', err);
+                reject(err);
+            } else {
+                console.log('User created successfully, ID:', this.lastID);
+                resolve({
+                    id: this.lastID,
+                    username,
+                    email,
+                    role
+                });
+            }
+        });
+    });
+}
+
+// Find user by email
+function findUserByEmail(email) {
+    return new Promise((resolve, reject) => {
+        const query = `SELECT * FROM users WHERE email = ?`;
+        
+        db.get(query, [email], (err, row) => {
+            if (err) {
+                console.error('Error finding user by email:', err);
+                reject(err);
+            } else {
+                resolve(row);
+            }
+        });
+    });
+}
+
+// Find user by username
+function findUserByUsername(username) {
+    return new Promise((resolve, reject) => {
+        const query = `SELECT * FROM users WHERE username = ?`;
+        
+        db.get(query, [username], (err, row) => {
+            if (err) {
+                console.error('Error finding user by username:', err);
+                reject(err);
+            } else {
+                resolve(row);
+            }
+        });
+    });
+}
+
+// Find user by ID
+function findUserById(id) {
+    return new Promise((resolve, reject) => {
+        const query = `SELECT id, username, email, role, created_at FROM users WHERE id = ?`;
+        
+        db.get(query, [id], (err, row) => {
+            if (err) {
+                console.error('Error finding user by ID:', err);
+                reject(err);
+            } else {
+                resolve(row);
+            }
+        });
+    });
+}
+
+// Get all users (admin only)
+function getAllUsers() {
+    return new Promise((resolve, reject) => {
+        const query = `SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC`;
+        
+        db.all(query, [], (err, rows) => {
+            if (err) {
+                console.error('Error fetching users:', err);
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
+}
+
+// Update user role (admin only)
+function updateUserRole(userId, role) {
+    return new Promise((resolve, reject) => {
+        const query = `UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+        
+        db.run(query, [role, userId], function(err) {
+            if (err) {
+                console.error('Error updating user role:', err);
+                reject(err);
+            } else {
+                console.log('User role updated, changes:', this.changes);
+                resolve(this.changes);
+            }
+        });
+    });
+}
+
+// Create default admin user if none exists
+async function createDefaultAdmin() {
+    try {
+        // Check if any admin users exist
+        const adminQuery = `SELECT * FROM users WHERE role = 'admin' LIMIT 1`;
+        
+        return new Promise((resolve, reject) => {
+            db.get(adminQuery, [], async (err, adminUser) => {
+                if (err) {
+                    console.error('Error checking for admin users:', err);
+                    reject(err);
+                    return;
+                }
+                
+                if (adminUser) {
+                    console.log('✅ Admin user already exists:', adminUser.username);
+                    resolve();
+                    return;
+                }
+                
+                // No admin exists, create default admin
+                console.log('🔧 Creating default admin user...');
+                
+                // Import bcrypt inside the function to avoid circular dependencies
+                const bcrypt = await import('bcryptjs');
+                const saltRounds = 12;
+                const defaultPassword = 'admin123';
+                const password_hash = await bcrypt.default.hash(defaultPassword, saltRounds);
+                
+                const insertQuery = `
+                    INSERT INTO users (username, email, password_hash, role)
+                    VALUES (?, ?, ?, ?)
+                `;
+                
+                db.run(insertQuery, ['admin', 'admin@inkbound.com', password_hash, 'admin'], function(err) {
+                    if (err) {
+                        console.error('Error creating default admin:', err);
+                        reject(err);
+                    } else {
+                        console.log('✅ Default admin user created successfully!');
+                        console.log('📧 Email: admin@inkbound.com');
+                        console.log('🔑 Password: admin123');
+                        console.log('⚠️  Please change the default password after first login');
+                        resolve();
+                    }
+                });
+            });
+        });
+    } catch (error) {
+        console.error('Error in createDefaultAdmin:', error);
+        throw error;
+    }
+}
+
 export {
     initializeDatabase,
     insertBook,
@@ -594,5 +777,12 @@ export {
     removeFeaturedContent,
     removeFeaturedContentItem,
     getFeaturedBooksByType,
-    getFeaturedAuthor
+    getFeaturedAuthor,
+    createUser,
+    findUserByEmail,
+    findUserByUsername,
+    findUserById,
+    getAllUsers,
+    updateUserRole,
+    createDefaultAdmin
 }; 

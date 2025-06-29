@@ -1,11 +1,18 @@
 import React from 'react';
 import { FaHome, FaSignOutAlt, FaCog } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const AdminNavbar = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const handleBackToSite = () => {
+    navigate('/');
+  };
+
+  const handleLogout = () => {
+    logout();
     navigate('/');
   };
 
@@ -22,9 +29,10 @@ const AdminNavbar = () => {
           </div>
         </div>
 
-        {/* Center: Admin Title */}
-        <div className="hidden md:block">
+        {/* Center: Admin Title and User Info */}
+        <div className="hidden md:block text-center">
           <h1 className="text-lg font-medium">Administration Dashboard</h1>
+          <p className="text-sm text-gray-300">Welcome, {user?.username}</p>
         </div>
 
         {/* Right: Action Buttons */}
@@ -43,7 +51,10 @@ const AdminNavbar = () => {
             <span className="hidden md:inline">Settings</span>
           </button>
           
-          <button className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-red-600 transition-colors">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-red-600 transition-colors"
+          >
             <FaSignOutAlt className="text-lg" />
             <span className="hidden md:inline">Logout</span>
           </button>

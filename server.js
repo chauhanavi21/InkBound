@@ -5,6 +5,9 @@ import fs from 'fs';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { body, validationResult } from 'express-validator';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -21,10 +24,36 @@ if (!process.env.OPENAI_API_KEY) {
     process.exit(1);
 }
 
+// Set JWT secret (use environment variable or default for development)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+if (!process.env.JWT_SECRET) {
+    console.warn('⚠️  Warning: Using default JWT secret. Set JWT_SECRET in .env for production');
+}
+
 console.log('✅ Environment variables loaded successfully');
 console.log(`✅ OpenAI API Key: ${process.env.OPENAI_API_KEY.substring(0, 20)}...`);
 
-import { initializeDatabase, insertBook, getAllBooks, updateBook, deleteBook, getFeaturedContent, setFeaturedContent, addFeaturedContent, removeFeaturedContent, removeFeaturedContentItem, getFeaturedBooksByType, getFeaturedAuthor } from './database.js';
+import { 
+    initializeDatabase, 
+    insertBook, 
+    getAllBooks, 
+    updateBook, 
+    deleteBook, 
+    getFeaturedContent, 
+    setFeaturedContent, 
+    addFeaturedContent, 
+    removeFeaturedContent, 
+    removeFeaturedContentItem, 
+    getFeaturedBooksByType, 
+    getFeaturedAuthor,
+    createUser,
+    findUserByEmail,
+    findUserByUsername,
+    findUserById,
+    getAllUsers,
+    updateUserRole,
+    createDefaultAdmin
+} from './database.js';
 import { analyzeBookImage } from './openai-service.js';
 
 const app = express();
@@ -67,15 +96,198 @@ const upload = multer({
 });
 
 // Initialize database
-initializeDatabase();
+initializeDatabase().then(async () => {
+    // Create default admin user if none exists
+    await createDefaultAdmin();
+}).catch(console.error);
 
-// Routes
+// Authentication middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        }
+        req.user = user;
+        next();
+    });
+};
+
+// Admin only middleware
+const requireAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+};
+
+// Validation middleware
+const handleValidationErrors = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+};
+
+// Authentication Routes
+
+// Register new user
+app.post('/api/register', [
+    body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+    body('email').isEmail().withMessage('Please provide a valid email'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+
+        // Check if user already exists
+        const existingUserByEmail = await findUserByEmail(email);
+        if (existingUserByEmail) {
+            return res.status(400).json({ error: 'Email already registered' });
+        }
+
+        const existingUserByUsername = await findUserByUsername(username);
+        if (existingUserByUsername) {
+            return res.status(400).json({ error: 'Username already taken' });
+        }
+
+        // Hash password
+        const saltRounds = 12;
+        const password_hash = await bcrypt.hash(password, saltRounds);
+
+        // Create user
+        const user = await createUser({
+            username,
+            email,
+            password_hash,
+            role: 'user'
+        });
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: user.id, username: user.username, email: user.email, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'User registered successfully',
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).json({ error: 'Registration failed' });
+    }
+});
+
+// Login user
+app.post('/api/login', [
+    body('email').isEmail().withMessage('Please provide a valid email'),
+    body('password').notEmpty().withMessage('Password is required')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Find user by email
+        const user = await findUserByEmail(email);
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid email or password' });
+        }
+
+        // Check password
+        const isValidPassword = await bcrypt.compare(password, user.password_hash);
+        if (!isValidPassword) {
+            return res.status(400).json({ error: 'Invalid email or password' });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: user.id, username: user.username, email: user.email, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            message: 'Login successful',
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+// Get current user info
+app.get('/api/me', authenticateToken, async (req, res) => {
+    try {
+        const user = await findUserById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(user);
+    } catch (error) {
+        console.error('Get user error:', error);
+        res.status(500).json({ error: 'Failed to get user info' });
+    }
+});
+
+// Get all users (admin only)
+app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const users = await getAllUsers();
+        res.json(users);
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.status(500).json({ error: 'Failed to get users' });
+    }
+});
+
+// Update user role (admin only)
+app.put('/api/users/:id/role', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+        
+        if (!['user', 'admin'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid role' });
+        }
+        
+        await updateUserRole(id, role);
+        res.json({ success: true, message: 'User role updated successfully' });
+    } catch (error) {
+        console.error('Update role error:', error);
+        res.status(500).json({ error: 'Failed to update user role' });
+    }
+});
+
+// Regular Routes (No authentication required for public access)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Upload and analyze book photo
-app.post('/api/upload', upload.single('bookPhoto'), async (req, res) => {
+// Upload and analyze book photo (ADMIN ONLY)
+app.post('/api/upload', authenticateToken, requireAdmin, upload.single('bookPhoto'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No image file uploaded' });
@@ -109,8 +321,8 @@ app.post('/api/upload', upload.single('bookPhoto'), async (req, res) => {
     }
 });
 
-// Upload image only (without AI analysis) for manual entry
-app.post('/api/upload-image', upload.single('bookPhoto'), async (req, res) => {
+// Upload image only (without AI analysis) for manual entry (ADMIN ONLY)
+app.post('/api/upload-image', authenticateToken, requireAdmin, upload.single('bookPhoto'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No image file uploaded' });
@@ -143,8 +355,8 @@ app.get('/api/books', async (req, res) => {
     }
 });
 
-// Add book manually (without image upload)
-app.post('/api/books', async (req, res) => {
+// Add book manually (without image upload) (ADMIN ONLY)
+app.post('/api/books', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const bookData = req.body;
         
@@ -168,8 +380,8 @@ app.post('/api/books', async (req, res) => {
     }
 });
 
-// Update book details
-app.put('/api/books/:id', async (req, res) => {
+// Update book details (ADMIN ONLY)
+app.put('/api/books/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const bookId = req.params.id;
         const updates = req.body;
@@ -182,8 +394,8 @@ app.put('/api/books/:id', async (req, res) => {
     }
 });
 
-// Bulk update books
-app.put('/api/books', async (req, res) => {
+// Bulk update books (ADMIN ONLY)
+app.put('/api/books', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { books } = req.body; // Array of book objects with id and updates
         
@@ -198,8 +410,8 @@ app.put('/api/books', async (req, res) => {
     }
 });
 
-// Delete book
-app.delete('/api/books/:id', async (req, res) => {
+// Delete book (ADMIN ONLY)
+app.delete('/api/books/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const bookId = req.params.id;
         await deleteBook(bookId);
@@ -246,8 +458,8 @@ app.get('/api/featured-author', async (req, res) => {
     }
 });
 
-// Add featured content (without replacing existing)
-app.post('/api/featured-content', async (req, res) => {
+// Add featured content (ADMIN ONLY)
+app.post('/api/featured-content', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { type, bookId, authorName, authorPhotoPath } = req.body;
         
@@ -263,8 +475,8 @@ app.post('/api/featured-content', async (req, res) => {
     }
 });
 
-// Set featured content (replace existing - for featured author)
-app.post('/api/featured-content/replace', async (req, res) => {
+// Set featured content (ADMIN ONLY)
+app.post('/api/featured-content/replace', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { type, bookId, authorName, authorPhotoPath } = req.body;
         
@@ -280,8 +492,8 @@ app.post('/api/featured-content/replace', async (req, res) => {
     }
 });
 
-// Upload author photo
-app.post('/api/upload-author-photo', upload.single('authorPhoto'), async (req, res) => {
+// Upload author photo (ADMIN ONLY)
+app.post('/api/upload-author-photo', authenticateToken, requireAdmin, upload.single('authorPhoto'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No image file uploaded' });
@@ -303,8 +515,8 @@ app.post('/api/upload-author-photo', upload.single('authorPhoto'), async (req, r
     }
 });
 
-// Remove individual featured content item
-app.delete('/api/featured-content/item/:id', async (req, res) => {
+// Remove individual featured content item (ADMIN ONLY)
+app.delete('/api/featured-content/item/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         await removeFeaturedContentItem(id);
@@ -315,8 +527,8 @@ app.delete('/api/featured-content/item/:id', async (req, res) => {
     }
 });
 
-// Remove all featured content of a type
-app.delete('/api/featured-content/:type', async (req, res) => {
+// Remove all featured content of a type (ADMIN ONLY)
+app.delete('/api/featured-content/:type', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { type } = req.params;
         await removeFeaturedContent(type);
