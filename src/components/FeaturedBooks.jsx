@@ -1,7 +1,11 @@
+// src/components/FeaturedBooks.jsx
 import React, { useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import staticBooks from '../data/books';
 
 const FeaturedBooks = () => {
   const sliderRef = useRef(null);
+  const navigate = useNavigate();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,11 +23,14 @@ const FeaturedBooks = () => {
           .filter(book => book.on_sale)
           .slice(0, 7);
         setBooks(featuredBooks);
+      } else {
+        throw new Error('API not available');
       }
     } catch (error) {
-      console.error('Error fetching featured books:', error);
-      // Fallback to empty array if API fails
-      setBooks([]);
+      console.error('Error fetching featured books, using static data:', error);
+      // Fallback to static data if API fails
+      const featuredBooks = staticBooks.filter(book => book.isFeatured || book.rating >= 4);
+      setBooks(featuredBooks);
     } finally {
       setLoading(false);
     }
@@ -31,7 +38,7 @@ const FeaturedBooks = () => {
 
   const scroll = (direction) => {
     if (sliderRef.current) {
-      const scrollAmount = sliderRef.current.offsetWidth / 5; // Slide by one card
+      const scrollAmount = sliderRef.current.offsetWidth / 5;
       sliderRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
@@ -81,7 +88,6 @@ const FeaturedBooks = () => {
       <div className="max-w-7xl mx-auto relative">
         <h2 className="text-2xl font-bold text-center mb-8">Featured Books</h2>
 
-        {/* Scrollable book cards with fixed width */}
         <div
           ref={sliderRef}
           className="flex overflow-x-auto gap-6 scroll-smooth snap-x snap-mandatory pb-2 hide-scrollbar"
@@ -89,18 +95,24 @@ const FeaturedBooks = () => {
           {books.map((book) => (
             <div
               key={book.id}
-              className="w-[19%] min-w-[220px] snap-start bg-white rounded-lg p-4 shadow hover:shadow-md transition shrink-0 relative"
+              onClick={() => navigate(`/product/${book.id}`)}
+              className="cursor-pointer w-[19%] min-w-[220px] snap-start bg-white rounded-lg p-4 shadow hover:shadow-md transition shrink-0 relative"
             >
-              {/* Discount Badge */}
+              {/* Discount Badge - supports both systems */}
               {book.is_discount_active && book.discount_percentage > 0 && (
                 <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded z-10">
                   -{book.discount_percentage}%
                 </div>
               )}
+              {book.discount && !book.is_discount_active && (
+                <div className="absolute top-2 left-2 bg-yellow-400 text-xs font-bold px-2 py-1 rounded">
+                  {book.discount}
+                </div>
+              )}
 
-              {/* Book Image */}
+              {/* Book Image - supports both systems */}
               <img 
-                src={getImagePath(book)} 
+                src={book.img || getImagePath(book)} 
                 alt={book.title} 
                 className="w-full h-52 object-cover rounded mb-4"
                 onError={(e) => {
@@ -117,12 +129,16 @@ const FeaturedBooks = () => {
                 {book.author || 'Unknown Author'}
               </p>
               
-              {/* Rating based on condition */}
+              {/* Rating - supports both systems */}
               <div className="text-yellow-400 text-sm mb-1">
-                ⭐ {(book.condition_rating / 2).toFixed(1)} / 5
+                {book.condition_rating ? (
+                  <>⭐ {(book.condition_rating / 2).toFixed(1)} / 5</>
+                ) : (
+                  <>⭐ {book.rating} / 5</>
+                )}
               </div>
               
-              {/* Price */}
+              {/* Price - supports both systems */}
               <div className="text-sm">
                 {book.is_discount_active ? (
                   <>
@@ -135,7 +151,7 @@ const FeaturedBooks = () => {
                   </>
                 ) : (
                   <span className="text-red-600 font-bold">
-                    ${book.price?.toFixed(2) || '0.00'}
+                    {typeof book.price === 'number' ? `$${book.price.toFixed(2)}` : book.price}
                   </span>
                 )}
               </div>

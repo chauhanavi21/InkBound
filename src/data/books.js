@@ -7,6 +7,9 @@ const books = [
     price: '$115.72',
     rating: 4,
     img: '/assets/book1.jpg',
+    isFavorite: true,
+    isFeatured: true,
+    category: 'Thriller',
   },
   {
     id: '2',
@@ -15,6 +18,9 @@ const books = [
     price: '$35.19',
     rating: 5,
     img: '/assets/book1.jpg',
+    isFavorite: true,
+    isFeatured: false,
+    category: 'Science & Technology',
   },
   {
     id: '3',
@@ -24,6 +30,9 @@ const books = [
     original: '$814.66',
     rating: 4,
     img: '/assets/book1.jpg',
+    isFavorite: true,
+    isFeatured: false,
+    category: 'Thriller',
   },
   {
     id: '4',
@@ -33,6 +42,9 @@ const books = [
     original: '$288.74',
     rating: 5,
     img: '/assets/book2.jpg',
+    isFavorite: true,
+    isFeatured: true,
+    category: 'Romance',
   },
   {
     id: '5',
@@ -42,6 +54,9 @@ const books = [
     original: '$86.99',
     rating: 4,
     img: '/assets/book2.jpg',
+    isFavorite: true,
+    isFeatured: false,
+    category: 'Fiction',
   },
   {
     id: '6',
@@ -50,6 +65,9 @@ const books = [
     price: '$761.67',
     rating: 0,
     img: '/assets/book2.jpg',
+    isFavorite: true,
+    isFeatured: false,
+    category: 'Romance',
   },
   {
     id: '7',
@@ -57,6 +75,9 @@ const books = [
     author: 'Jessica Munoz',
     price: '$489.44',
     img: '/assets/book1.jpg',
+    isFavorite: false,
+    isFeatured: true,
+    category: 'Thriller',
   },
   {
     id: '8',
@@ -65,6 +86,9 @@ const books = [
     price: '$553.00',
     discount: '-30%',
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Thriller',
   },
   {
     id: '9',
@@ -72,6 +96,9 @@ const books = [
     author: 'Jessica Munoz',
     price: '$906.29',
     img: '/assets/book1.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Thriller',
   },
   {
     id: '10',
@@ -80,6 +107,9 @@ const books = [
     price: '$569.00',
     discount: '-30%',
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: true,
+    category: 'Thriller',
   },
   {
     id: '11',
@@ -88,6 +118,9 @@ const books = [
     price: '$50.89',
     rating: 3.5,
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Science & Technology',
   },
   {
     id: '12',
@@ -96,6 +129,9 @@ const books = [
     price: '$914.53',
     rating: 3.5,
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Romance',
   },
   {
     id: '13',
@@ -104,6 +140,9 @@ const books = [
     price: '$825.85',
     rating: 4,
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: true,
+    category: 'Fiction',
   },
   {
     id: '14',
@@ -112,6 +151,9 @@ const books = [
     price: '$38.40',
     rating: 4.5,
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Thriller',
   },
   {
     id: '15',
@@ -120,6 +162,9 @@ const books = [
     price: '$22.99',
     rating: 4.2,
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Science & Technology',
   },
   {
     id: '16',
@@ -127,6 +172,9 @@ const books = [
     author: 'James Clear',
     price: '$40.00',
     img: '/assets/book1.jpg',
+    isFavorite: false,
+    isFeatured: true,
+    category: 'Science & Technology',
   },
   {
     id: '17',
@@ -134,6 +182,9 @@ const books = [
     author: 'Cal Newport',
     price: '$45.00',
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Science & Technology',
   },
   {
     id: '18',
@@ -141,6 +192,9 @@ const books = [
     author: 'Paulo Coelho',
     price: '$29.99',
     img: '/assets/book1.jpg',
+    isFavorite: false,
+    isFeatured: false,
+    category: 'Fiction',
   },
   {
     id: '19',
@@ -148,6 +202,9 @@ const books = [
     author: 'George Orwell',
     price: '$19.84',
     img: '/assets/book2.jpg',
+    isFavorite: false,
+    isFeatured: true,
+    category: 'Fiction',
   },
 ];
 
