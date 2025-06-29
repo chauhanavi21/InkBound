@@ -1,54 +1,37 @@
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-// Load environment variables with explicit path
-dotenv.config({ path: '.env' });
+let openai;
 
-// Validate environment variable
-if (!process.env.OPENAI_API_KEY) {
-    console.error('OPENAI_API_KEY is not set in environment variables');
-    console.error('Please check your .env file');
-    throw new Error('Missing OpenAI API key');
-}
-
-// Initialize OpenAI client (lazy initialization)
-let openai = null;
-
+// Initialize OpenAI client lazily
 function getOpenAIClient() {
     if (!openai) {
-        try {
-            openai = new OpenAI({
-                apiKey: process.env.OPENAI_API_KEY.trim()
-            });
-            console.log('OpenAI client initialized successfully');
-        } catch (error) {
-            console.error('Failed to initialize OpenAI client:', error);
-            throw error;
+        if (!process.env.OPENAI_API_KEY) {
+            throw new Error('OPENAI_API_KEY environment variable is not set');
         }
+        openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
     }
     return openai;
 }
 
-export async function analyzeBookFromImage(imagePath) {
+async function analyzeBookImage(imagePath) {
     try {
-        console.log('Starting book analysis for image:', imagePath);
-        
-        // Check if file exists
-        if (!fs.existsSync(imagePath)) {
-            throw new Error(`Image file not found: ${imagePath}`);
-        }
-
-        // Get OpenAI client
+        // Get OpenAI client (will initialize if needed)
         const client = getOpenAIClient();
-
-        // Read and encode the image
+        
+        // Read the image file
         const imageBuffer = fs.readFileSync(imagePath);
         const base64Image = imageBuffer.toString('base64');
-        const mimeType = path.extname(imagePath).toLowerCase() === '.png' ? 'image/png' : 'image/jpeg';
-
-        console.log('Image loaded, sending to OpenAI for analysis...');
+        const imageExtension = path.extname(imagePath).toLowerCase();
+        
+        // Determine MIME type
+        let mimeType = 'image/jpeg';
+        if (imageExtension === '.png') mimeType = 'image/png';
+        else if (imageExtension === '.webp') mimeType = 'image/webp';
+        else if (imageExtension === '.gif') mimeType = 'image/gif';
 
         const response = await client.chat.completions.create({
             model: "gpt-4o",
@@ -58,26 +41,32 @@ export async function analyzeBookFromImage(imagePath) {
                     content: [
                         {
                             type: "text",
-                            text: `Analyze this book cover image and extract the following information in JSON format:
+                            text: `Analyze this book image and extract the following information in JSON format:
                             {
-                                "title": "book title",
-                                "author": "author name", 
-                                "genre": "book genre/category",
-                                "published_year": year_as_number,
-                                "description": "brief description based on cover",
-                                "condition_rating": rating_1_to_10,
-                                "price": estimated_price_as_number,
-                                "isbn": "ISBN if visible or null"
+                                "title": "Book title",
+                                "author": "Author name(s)",
+                                "published_year": year as integer (or null if not visible),
+                                "isbn": "ISBN if visible (or null)",
+                                "genre": "Estimated genre based on cover/title",
+                                "description": "Brief description based on what you can see and infer from the book",
+                                "condition_rating": estimated condition from 1-10 based on visible wear (default 7 if unclear),
+                                "price": null (to be set by user)
                             }
                             
-                            Guidelines:
-                            - Extract exact title and author from the cover
-                            - Estimate condition rating (1-10) based on image quality and visible wear
-                            - Estimate reasonable used book price in USD
-                            - Provide genre based on cover design and title
-                            - Give a brief description based on what you can see
-                            - Only include ISBN if clearly visible, otherwise use null
-                            - Return only valid JSON, no additional text`
+                            IMPORTANT INSTRUCTIONS:
+                            1. If you recognize this as a well-known book, please fill in the published_year even if it's not visible on the cover (use your knowledge of when the book was first published)
+                            2. For famous books, you can also provide the original ISBN-10 or ISBN-13 if you know it
+                            3. Be as accurate as possible with the title and author - these should match the official publication
+                            4. For the description, provide a helpful summary that would be useful for someone considering buying this book
+                            5. Base the genre on the book content, not just the cover design
+                            6. If you can't clearly see certain information AND don't recognize the book, use null for that field
+                            
+                            Examples of how to handle known books:
+                            - If you see "Harry Potter and the Philosopher's Stone" by J.K. Rowling, the published_year should be 1997 (original UK publication)
+                            - If you see "To Kill a Mockingbird" by Harper Lee, the published_year should be 1960
+                            - If you see "1984" by George Orwell, the published_year should be 1949
+                            
+                            Please extract information now:`
                         },
                         {
                             type: "image_url",
@@ -88,60 +77,69 @@ export async function analyzeBookFromImage(imagePath) {
                     ]
                 }
             ],
-            max_tokens: 500
+            max_tokens: 1000,
+            temperature: 0.1
         });
 
-        const content = response.choices[0]?.message?.content;
-        console.log('OpenAI response received:', content);
+        const aiResponse = response.choices[0].message.content;
+        console.log('OpenAI Response:', aiResponse);
 
-        if (!content) {
-            throw new Error('No response content from OpenAI');
-        }
-
-        // Parse the JSON response
-        let bookData;
+        // Try to parse JSON from the response
+        let bookDetails;
         try {
-            // Clean the response - remove any markdown formatting
-            const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-            bookData = JSON.parse(cleanContent);
+            // Extract JSON from the response (in case there's extra text)
+            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                bookDetails = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('No JSON found in response');
+            }
         } catch (parseError) {
-            console.error('Failed to parse OpenAI response as JSON:', content);
-            throw new Error('Invalid JSON response from OpenAI');
+            console.error('Error parsing AI response:', parseError);
+            // Fallback with default values
+            bookDetails = {
+                title: "Unknown Book",
+                author: "Unknown Author",
+                published_year: null,
+                isbn: null,
+                genre: "General",
+                description: "Book details could not be automatically extracted. Please update manually.",
+                condition_rating: 7,
+                price: null
+            };
         }
 
-        // Validate required fields
-        if (!bookData.title) {
-            throw new Error('No title found in book analysis');
-        }
-
-        // Set defaults for missing fields
-        const processedData = {
-            title: bookData.title || 'Unknown Title',
-            author: bookData.author || 'Unknown Author',
-            genre: bookData.genre || 'Fiction',
-            published_year: bookData.published_year || null,
-            description: bookData.description || 'Book analyzed from cover image',
-            condition_rating: Math.min(Math.max(bookData.condition_rating || 7, 1), 10),
-            price: Math.max(bookData.price || 15, 1),
-            isbn: bookData.isbn || null
+        // Ensure all expected fields exist with proper types
+        const processedDetails = {
+            title: bookDetails.title || "Unknown Book",
+            author: bookDetails.author || "Unknown Author", 
+            published_year: bookDetails.published_year ? parseInt(bookDetails.published_year) : null,
+            isbn: bookDetails.isbn || null,
+            genre: bookDetails.genre || "General",
+            description: bookDetails.description || "No description available",
+            condition_rating: parseInt(bookDetails.condition_rating) || 7,
+            price: bookDetails.price ? parseFloat(bookDetails.price) : null
         };
 
-        console.log('Book analysis completed successfully:', processedData);
-        return processedData;
+        return processedDetails;
 
     } catch (error) {
-        console.error('Error in analyzeBookFromImage:', error);
+        console.error('Error analyzing image with OpenAI:', error);
         
-        // Return default book data if analysis fails
+        // Return default structure if OpenAI fails
         return {
-            title: 'Unknown Book',
-            author: 'Unknown Author',
-            genre: 'Fiction',
+            title: "Unknown Book",
+            author: "Unknown Author",
             published_year: null,
-            description: 'Book uploaded via image - analysis failed',
+            isbn: null,
+            genre: "General",
+            description: "Could not extract book details automatically. Please update manually.",
             condition_rating: 7,
-            price: 15,
-            isbn: null
+            price: null
         };
     }
-} 
+}
+
+export {
+    analyzeBookImage
+}; 

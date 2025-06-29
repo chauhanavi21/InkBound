@@ -1,25 +1,45 @@
 import express from 'express';
-import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
+import cors from 'cors';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { initializeDatabase, insertBook, getAllBooks, updateBook, deleteBook } from './database.js';
-import { analyzeBookFromImage } from './openai-service.js';
 
-// Load environment variables
-dotenv.config();
-
+// ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Configure dotenv to load from the correct path
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+// Validate environment variables
+if (!process.env.OPENAI_API_KEY) {
+    console.error('❌ Error: OPENAI_API_KEY environment variable is not set');
+    console.error('Please check your .env file and ensure it contains:');
+    console.error('OPENAI_API_KEY=your_actual_api_key_here');
+    process.exit(1);
+}
+
+console.log('✅ Environment variables loaded successfully');
+console.log(`✅ OpenAI API Key: ${process.env.OPENAI_API_KEY.substring(0, 20)}...`);
+
+import { initializeDatabase, insertBook, getAllBooks, updateBook, deleteBook } from './database.js';
+import { analyzeBookImage } from './openai-service.js';
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(express.static('public'));
+app.use('/uploads', express.static('uploads'));
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync('uploads')) {
+    fs.mkdirSync('uploads');
+}
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -27,9 +47,8 @@ const storage = multer.diskStorage({
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        const timestamp = Date.now();
-        const randomNum = Math.floor(Math.random() * 1000000);
-        cb(null, `book-${timestamp}-${randomNum}${path.extname(file.originalname)}`);
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'book-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
@@ -43,14 +62,77 @@ const upload = multer({
         }
     },
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
+        fileSize: 10 * 1024 * 1024 // 10MB limit
     }
 });
 
 // Initialize database
-initializeDatabase().catch(console.error);
+initializeDatabase();
 
 // Routes
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Upload and analyze book photo
+app.post('/api/upload', upload.single('bookPhoto'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image file uploaded' });
+        }
+
+        const imagePath = req.file.path;
+        
+        // Analyze image with OpenAI
+        console.log('Analyzing book image...');
+        const bookDetails = await analyzeBookImage(imagePath);
+        
+        // Save to database
+        const bookId = await insertBook({
+            ...bookDetails,
+            imagePath: imagePath,
+            uploadDate: new Date().toISOString()
+        });
+
+        res.json({
+            success: true,
+            bookId: bookId,
+            bookDetails: bookDetails,
+            imagePath: imagePath
+        });
+    } catch (error) {
+        console.error('Error processing upload:', error);
+        res.status(500).json({ 
+            error: 'Failed to process image', 
+            message: error.message 
+        });
+    }
+});
+
+// Upload image only (without AI analysis) for manual entry
+app.post('/api/upload-image', upload.single('bookPhoto'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image file uploaded' });
+        }
+
+        const imagePath = req.file.path;
+        
+        res.json({
+            success: true,
+            imagePath: imagePath,
+            message: 'Image uploaded successfully'
+        });
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        res.status(500).json({ 
+            error: 'Failed to upload image', 
+            message: error.message 
+        });
+    }
+});
+
+// Get all books
 app.get('/api/books', async (req, res) => {
     try {
         const books = await getAllBooks();
@@ -61,62 +143,38 @@ app.get('/api/books', async (req, res) => {
     }
 });
 
+// Add book manually (without image upload)
 app.post('/api/books', async (req, res) => {
     try {
-        const bookData = {
-            ...req.body,
-            uploadDate: new Date().toISOString(),
-            imagePath: null,
-            images: []
-        };
+        const bookData = req.body;
         
-        const bookId = await insertBook(bookData);
-        res.json({ success: true, bookId, message: 'Book added successfully' });
-    } catch (error) {
-        console.error('Error adding book:', error);
-        res.status(500).json({ error: 'Failed to add book' });
-    }
-});
-
-app.post('/api/upload', upload.array('images', 5), async (req, res) => {
-    try {
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'No images provided' });
-        }
-
-        const imagePaths = req.files.map(file => file.path);
-        const primaryImagePath = imagePaths[0];
-
-        const bookData = await analyzeBookFromImage(primaryImagePath);
-        
-        const completeBookData = {
+        const bookId = await insertBook({
             ...bookData,
-            imagePath: primaryImagePath,
-            images: imagePaths,
-            uploadDate: new Date().toISOString(),
-            on_sale: 1
-        };
+            imagePath: bookData.imagePath || null,
+            uploadDate: bookData.uploadDate || new Date().toISOString()
+        });
 
-        const bookId = await insertBook(completeBookData);
-        
         res.json({
             success: true,
-            bookId,
-            bookData: completeBookData,
-            message: 'Book analyzed and added successfully'
+            bookId: bookId,
+            message: 'Book added successfully'
         });
     } catch (error) {
-        console.error('Error processing upload:', error);
-        res.status(500).json({ error: 'Failed to process book analysis' });
+        console.error('Error adding book:', error);
+        res.status(500).json({ 
+            error: 'Failed to add book', 
+            message: error.message 
+        });
     }
 });
 
+// Update book details
 app.put('/api/books/:id', async (req, res) => {
     try {
         const bookId = req.params.id;
         const updates = req.body;
         
-        const result = await updateBook(bookId, updates);
+        await updateBook(bookId, updates);
         res.json({ success: true, message: 'Book updated successfully' });
     } catch (error) {
         console.error('Error updating book:', error);
@@ -124,10 +182,27 @@ app.put('/api/books/:id', async (req, res) => {
     }
 });
 
+// Bulk update books
+app.put('/api/books', async (req, res) => {
+    try {
+        const { books } = req.body; // Array of book objects with id and updates
+        
+        for (const book of books) {
+            await updateBook(book.id, book);
+        }
+        
+        res.json({ success: true, message: 'Books updated successfully' });
+    } catch (error) {
+        console.error('Error bulk updating books:', error);
+        res.status(500).json({ error: 'Failed to update books' });
+    }
+});
+
+// Delete book
 app.delete('/api/books/:id', async (req, res) => {
     try {
         const bookId = req.params.id;
-        const result = await deleteBook(bookId);
+        await deleteBook(bookId);
         res.json({ success: true, message: 'Book deleted successfully' });
     } catch (error) {
         console.error('Error deleting book:', error);
@@ -135,6 +210,16 @@ app.delete('/api/books/:id', async (req, res) => {
     }
 });
 
+// Error handling middleware
+app.use((error, req, res, next) => {
+    if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
+        }
+    }
+    res.status(500).json({ error: error.message });
+});
+
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 }); 
