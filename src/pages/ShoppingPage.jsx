@@ -23,16 +23,22 @@ const parsePrice = (price) => {
 const ShoppingPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const query = new URLSearchParams(location.search).get('q')?.toLowerCase() || '';
+  
+  // Get search parameters from URL
+  const urlParams = new URLSearchParams(location.search);
+  const searchParam = urlParams.get('search') || '';
+  const categoryParam = urlParams.get('category') || '';
 
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Filter states
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState(
+    categoryParam ? [categoryParam] : []
+  );
   const [selectedPrice, setSelectedPrice] = useState(null);
-  const [searchTerm, setSearchTerm] = useState(query);
+  const [searchTerm, setSearchTerm] = useState(searchParam);
 
   // Dynamically generate categories from the loaded book data
   const availableCategories = React.useMemo(() => {
@@ -70,25 +76,6 @@ const ShoppingPage = () => {
     }
   };
 
-  // Effect to handle direct navigation from search
-  useEffect(() => {
-    if (!searchTerm) return;
-
-    const matchedBook = books.find(
-      (b) =>
-        b.title.toLowerCase() === searchTerm ||
-        b.author.toLowerCase() === searchTerm
-    );
-
-    if (matchedBook) {
-      navigate(`/product/${matchedBook.id}`);
-    } else if (availableCategories.map((c) => c.toLowerCase()).includes(searchTerm)) {
-      setSelectedCategories([capitalize(searchTerm)]);
-    }
-  }, [searchTerm, books, availableCategories]);
-
-  const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
-
   const handleCategoryChange = (category) => {
     setSelectedCategories((prev) =>
       prev.includes(category)
@@ -111,9 +98,15 @@ const ShoppingPage = () => {
     
     const matchPrice = !selectedPrice || (price >= selectedPrice.min && price <= selectedPrice.max);
 
+    // Add text search functionality
+    const matchSearch = !searchTerm || (
+      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.description && book.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (book.genre && book.genre.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
-
-    return matchCategory && matchPrice;
+    return matchCategory && matchPrice && matchSearch;
   });
 
   if (loading) {
@@ -155,7 +148,25 @@ const ShoppingPage = () => {
     <div className="bg-gray-100 min-h-screen">
       <Navbar />
       <div className="max-w-[96rem] mx-auto px-4 py-10">
-        <h2 className="text-3xl font-bold mb-8">All Books ({filteredBooks.length})</h2>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-3xl font-bold">All Books ({filteredBooks.length})</h2>
+          {searchTerm && (
+            <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
+              <span className="text-blue-700">
+                Searching for: <strong>"{searchTerm}"</strong>
+              </span>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  navigate('/shop');
+                }}
+                className="text-blue-600 hover:text-blue-800 ml-2"
+              >
+                ✕ Clear
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-col lg:flex-row gap-10">
           {/* Sidebar Filters */}
           <div className="w-full lg:w-[19%] bg-white p-6 rounded shadow-sm">

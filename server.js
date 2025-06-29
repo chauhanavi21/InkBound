@@ -37,6 +37,7 @@ import {
     initializeDatabase, 
     insertBook, 
     getAllBooks, 
+    getBookById,
     updateBook, 
     deleteBook, 
     getFeaturedContent, 
@@ -52,7 +53,22 @@ import {
     findUserById,
     getAllUsers,
     updateUserRole,
-    createDefaultAdmin
+    createDefaultAdmin,
+    updateUserProfile,
+    changeUserPassword,
+    getUserAddresses,
+    addUserAddress,
+    updateUserAddress,
+    deleteUserAddress,
+    getUserCart,
+    addToCart,
+    updateCartQuantity,
+    removeFromCart,
+    clearCart,
+    getUserWishlist,
+    addToWishlist,
+    removeFromWishlist,
+    isInWishlist
 } from './database.js';
 import { analyzeBookImage } from './openai-service.js';
 
@@ -281,6 +297,246 @@ app.put('/api/users/:id/role', authenticateToken, requireAdmin, async (req, res)
     }
 });
 
+// User Profile Management Routes
+
+// Update user profile
+app.put('/api/profile', authenticateToken, [
+    body('email').optional().isEmail().withMessage('Please provide a valid email'),
+    body('first_name').optional().isLength({ min: 1 }).withMessage('First name cannot be empty'),
+    body('last_name').optional().isLength({ min: 1 }).withMessage('Last name cannot be empty'),
+    body('phone').optional().matches(/^[\+]?[1-9][\d]{0,15}$/).withMessage('Please provide a valid phone number')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { first_name, last_name, phone, email } = req.body;
+        
+        // Check if email already exists for another user
+        if (email) {
+            const existingUser = await findUserByEmail(email);
+            if (existingUser && existingUser.id !== req.user.id) {
+                return res.status(400).json({ error: 'Email already in use by another account' });
+            }
+        }
+        
+        await updateUserProfile(req.user.id, { first_name, last_name, phone, email });
+        
+        // Get updated user info
+        const updatedUser = await findUserById(req.user.id);
+        res.json({ success: true, message: 'Profile updated successfully', user: updatedUser });
+    } catch (error) {
+        console.error('Profile update error:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+// Change password
+app.put('/api/profile/password', authenticateToken, [
+    body('currentPassword').notEmpty().withMessage('Current password is required'),
+    body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        
+        // Get current user with password hash
+        const user = await findUserByEmail(req.user.email);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        // Verify current password
+        const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isValidPassword) {
+            return res.status(400).json({ error: 'Current password is incorrect' });
+        }
+        
+        // Hash new password
+        const saltRounds = 12;
+        const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+        
+        await changeUserPassword(req.user.id, newPasswordHash);
+        res.json({ success: true, message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('Password change error:', error);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+// Address Management Routes
+
+// Get user addresses
+app.get('/api/addresses', authenticateToken, async (req, res) => {
+    try {
+        const addresses = await getUserAddresses(req.user.id);
+        res.json(addresses);
+    } catch (error) {
+        console.error('Get addresses error:', error);
+        res.status(500).json({ error: 'Failed to get addresses' });
+    }
+});
+
+// Add new address
+app.post('/api/addresses', authenticateToken, [
+    body('full_name').notEmpty().withMessage('Full name is required'),
+    body('address_line1').notEmpty().withMessage('Address line 1 is required'),
+    body('city').notEmpty().withMessage('City is required'),
+    body('state').notEmpty().withMessage('State is required'),
+    body('postal_code').notEmpty().withMessage('Postal code is required')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const addressId = await addUserAddress(req.user.id, req.body);
+        res.status(201).json({ success: true, addressId, message: 'Address added successfully' });
+    } catch (error) {
+        console.error('Add address error:', error);
+        res.status(500).json({ error: 'Failed to add address' });
+    }
+});
+
+// Update address
+app.put('/api/addresses/:id', authenticateToken, [
+    body('full_name').notEmpty().withMessage('Full name is required'),
+    body('address_line1').notEmpty().withMessage('Address line 1 is required'),
+    body('city').notEmpty().withMessage('City is required'),
+    body('state').notEmpty().withMessage('State is required'),
+    body('postal_code').notEmpty().withMessage('Postal code is required')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await updateUserAddress(id, req.user.id, req.body);
+        res.json({ success: true, message: 'Address updated successfully' });
+    } catch (error) {
+        console.error('Update address error:', error);
+        res.status(500).json({ error: 'Failed to update address' });
+    }
+});
+
+// Delete address
+app.delete('/api/addresses/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await deleteUserAddress(id, req.user.id);
+        res.json({ success: true, message: 'Address deleted successfully' });
+    } catch (error) {
+        console.error('Delete address error:', error);
+        res.status(500).json({ error: 'Failed to delete address' });
+    }
+});
+
+// Shopping Cart Routes
+
+// Get user's cart
+app.get('/api/cart', authenticateToken, async (req, res) => {
+    try {
+        const cart = await getUserCart(req.user.id);
+        res.json(cart);
+    } catch (error) {
+        console.error('Get cart error:', error);
+        res.status(500).json({ error: 'Failed to get cart' });
+    }
+});
+
+// Add item to cart
+app.post('/api/cart', authenticateToken, [
+    body('bookId').isInt({ min: 1 }).withMessage('Valid book ID is required'),
+    body('quantity').optional().isInt({ min: 1 }).withMessage('Quantity must be at least 1')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { bookId, quantity = 1 } = req.body;
+        await addToCart(req.user.id, bookId, quantity);
+        res.json({ success: true, message: 'Item added to cart' });
+    } catch (error) {
+        console.error('Add to cart error:', error);
+        res.status(500).json({ error: 'Failed to add item to cart' });
+    }
+});
+
+// Update cart item quantity
+app.put('/api/cart/:bookId', authenticateToken, [
+    body('quantity').isInt({ min: 0 }).withMessage('Quantity must be 0 or greater')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { bookId } = req.params;
+        const { quantity } = req.body;
+        await updateCartQuantity(req.user.id, bookId, quantity);
+        res.json({ success: true, message: 'Cart updated successfully' });
+    } catch (error) {
+        console.error('Update cart error:', error);
+        res.status(500).json({ error: 'Failed to update cart' });
+    }
+});
+
+// Remove item from cart
+app.delete('/api/cart/:bookId', authenticateToken, async (req, res) => {
+    try {
+        const { bookId } = req.params;
+        await removeFromCart(req.user.id, bookId);
+        res.json({ success: true, message: 'Item removed from cart' });
+    } catch (error) {
+        console.error('Remove from cart error:', error);
+        res.status(500).json({ error: 'Failed to remove item from cart' });
+    }
+});
+
+// Clear cart
+app.delete('/api/cart', authenticateToken, async (req, res) => {
+    try {
+        await clearCart(req.user.id);
+        res.json({ success: true, message: 'Cart cleared successfully' });
+    } catch (error) {
+        console.error('Clear cart error:', error);
+        res.status(500).json({ error: 'Failed to clear cart' });
+    }
+});
+
+// Wishlist Routes
+
+// Get user's wishlist
+app.get('/api/wishlist', authenticateToken, async (req, res) => {
+    try {
+        const wishlist = await getUserWishlist(req.user.id);
+        res.json(wishlist);
+    } catch (error) {
+        console.error('Get wishlist error:', error);
+        res.status(500).json({ error: 'Failed to get wishlist' });
+    }
+});
+
+// Add item to wishlist
+app.post('/api/wishlist', authenticateToken, [
+    body('bookId').isInt({ min: 1 }).withMessage('Valid book ID is required')
+], handleValidationErrors, async (req, res) => {
+    try {
+        const { bookId } = req.body;
+        const result = await addToWishlist(req.user.id, bookId);
+        res.json({ success: true, message: 'Item added to wishlist', result });
+    } catch (error) {
+        console.error('Add to wishlist error:', error);
+        res.status(500).json({ error: 'Failed to add item to wishlist' });
+    }
+});
+
+// Remove item from wishlist
+app.delete('/api/wishlist/:bookId', authenticateToken, async (req, res) => {
+    try {
+        const { bookId } = req.params;
+        await removeFromWishlist(req.user.id, bookId);
+        res.json({ success: true, message: 'Item removed from wishlist' });
+    } catch (error) {
+        console.error('Remove from wishlist error:', error);
+        res.status(500).json({ error: 'Failed to remove item from wishlist' });
+    }
+});
+
+// Check if item is in wishlist
+app.get('/api/wishlist/check/:bookId', authenticateToken, async (req, res) => {
+    try {
+        const { bookId } = req.params;
+        const inWishlist = await isInWishlist(req.user.id, bookId);
+        res.json({ inWishlist });
+    } catch (error) {
+        console.error('Check wishlist error:', error);
+        res.status(500).json({ error: 'Failed to check wishlist' });
+    }
+});
+
 // Regular Routes (No authentication required for public access)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -352,6 +608,23 @@ app.get('/api/books', async (req, res) => {
     } catch (error) {
         console.error('Error fetching books:', error);
         res.status(500).json({ error: 'Failed to fetch books' });
+    }
+});
+
+// Get single book by ID
+app.get('/api/books/:id', async (req, res) => {
+    try {
+        const bookId = req.params.id;
+        const book = await getBookById(bookId);
+        
+        if (!book) {
+            return res.status(404).json({ error: 'Book not found' });
+        }
+        
+        res.json(book);
+    } catch (error) {
+        console.error('Error fetching book:', error);
+        res.status(500).json({ error: 'Failed to fetch book' });
     }
 });
 

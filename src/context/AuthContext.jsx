@@ -14,6 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [authMessage, setAuthMessage] = useState('');
 
   // Check if user is authenticated on app load
   useEffect(() => {
@@ -35,14 +36,13 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           setToken(storedToken);
         } else {
-          // Token is invalid, remove it
-          localStorage.removeItem('token');
-          setToken(null);
+          // Token is invalid, remove it and show message
+          console.log('Token validation failed, clearing stored token');
+          forceLogout('Your session has expired. Please log in again.');
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        localStorage.removeItem('token');
-        setToken(null);
+        forceLogout('Connection error. Please log in again.');
       }
     }
     setLoading(false);
@@ -104,10 +104,24 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+    setAuthMessage('');
+  };
+
+  const forceLogout = (message = 'Your session has expired. Please log in again.') => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    setAuthMessage(message);
+    // Clear message after 5 seconds
+    setTimeout(() => setAuthMessage(''), 5000);
   };
 
   const isAdmin = () => {
     return user && user.role === 'admin';
+  };
+
+  const updateUser = (updatedUserData) => {
+    setUser(updatedUserData);
   };
 
   const value = {
@@ -117,7 +131,10 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    forceLogout,
     isAdmin,
+    updateUser,
+    authMessage,
     isAuthenticated: !!user
   };
 
