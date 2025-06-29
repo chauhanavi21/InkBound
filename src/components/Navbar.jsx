@@ -250,22 +250,22 @@ const Navbar = () => {
         </div>
       )}
       
-      <nav className="bg-[#131921] text-white py-5 px-4">
+      <nav className="bg-[#131921] text-white py-4 px-4 shadow-lg">
         <div className="max-w-[95rem] mx-auto flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
           {/* Logo / Site Name */}
           <div className="flex items-center space-x-3 w-full md:w-auto">
-            <Link to="/" className="text-2xl font-semibold hover:text-yellow-400">
+            <Link to="/" className="text-2xl font-bold hover:text-yellow-400 transition-colors duration-200">
               InkBound
             </Link>
           </div>
 
           {/* Search Bar */}
-          <div className="w-full md:w-[40%] relative">
-            <div className="flex items-center">
+          <div className="w-full md:w-[45%] relative">
+            <div className="flex items-center shadow-md rounded-lg overflow-hidden">
               <input
                 type="text"
                 placeholder="Search books, authors, genres..."
-                className="w-full px-4 py-2 rounded-l-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                className="w-full px-4 py-3 text-gray-800 bg-white border-0 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm"
                 value={searchTerm}
                 onChange={handleSearchInput}
                 onKeyDown={handleKeyDown}
@@ -274,9 +274,9 @@ const Navbar = () => {
               />
               <button
                 onClick={handleSearch}
-                className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-r-md hover:bg-yellow-300 flex items-center justify-center"
+                className="bg-yellow-400 hover:bg-yellow-500 text-black font-medium px-6 py-3 flex items-center justify-center transition-all duration-200"
               >
-                <FaSearch />
+                <FaSearch className="text-lg" />
               </button>
             </div>
 
@@ -284,18 +284,18 @@ const Navbar = () => {
             {showSuggestions && (
               <div 
                 ref={suggestionsRef}
-                className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-b-md shadow-lg z-50 max-h-96 overflow-y-auto"
+                className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto mt-1"
               >
                 {isLoading ? (
-                  <div className="p-4 text-center text-gray-500">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-400 mx-auto mb-2"></div>
-                    Searching...
+                  <div className="p-6 text-center text-gray-500">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-400 mx-auto mb-3"></div>
+                    <span className="text-sm">Searching...</span>
                   </div>
                 ) : suggestions.length > 0 ? (
                   suggestions.map((suggestion, index) => (
                     <div
                       key={`${suggestion.type}-${suggestion.text}-${index}`}
-                      className={`p-3 cursor-pointer border-b border-gray-100 hover:bg-gray-50 flex items-center space-x-3 ${
+                      className={`p-4 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-gray-50 flex items-center space-x-4 transition-colors duration-150 ${
                         selectedSuggestion === index ? 'bg-yellow-50 border-l-4 border-l-yellow-400' : ''
                       }`}
                       onClick={() => handleSuggestionClick(suggestion)}
@@ -304,47 +304,49 @@ const Navbar = () => {
                         <img 
                           src={suggestion.image.startsWith('http') ? suggestion.image : `http://localhost:3000/${suggestion.image}`}
                           alt={suggestion.text}
-                          className="w-8 h-10 object-cover rounded"
+                          className="w-10 h-12 object-cover rounded shadow-sm flex-shrink-0"
                           onError={(e) => {
                             e.target.style.display = 'none';
                           }}
                         />
                       )}
                       
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          {suggestion.type === 'book' && <FaSearch className="text-gray-400 text-xs" />}
-                          {suggestion.type === 'author' && <FaUser className="text-gray-400 text-xs" />}
-                          {suggestion.type === 'genre' && <span className="text-gray-400 text-xs">#</span>}
-                          <span className="text-gray-800 font-medium">{suggestion.text}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          {suggestion.type === 'book' && <FaSearch className="text-gray-400 text-sm flex-shrink-0" />}
+                          {suggestion.type === 'author' && <FaUser className="text-gray-400 text-sm flex-shrink-0" />}
+                          {suggestion.type === 'genre' && <span className="text-gray-400 text-sm flex-shrink-0">#</span>}
+                          <span className="text-gray-900 font-medium text-sm truncate">{suggestion.text}</span>
                         </div>
                         {suggestion.subtext && (
-                          <div className="text-xs text-gray-500 mt-1">{suggestion.subtext}</div>
+                          <div className="text-xs text-gray-500 truncate">{suggestion.subtext}</div>
                         )}
                       </div>
                       
-                      <div className="text-xs text-gray-400 capitalize">
+                      <div className="text-xs text-gray-400 capitalize bg-gray-100 px-2 py-1 rounded-full">
                         {suggestion.type}
                       </div>
                     </div>
                   ))
                 ) : searchTerm.length >= 2 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    No suggestions found for "{searchTerm}"
+                  <div className="p-6 text-center text-gray-500">
+                    <div className="text-sm">No suggestions found for "<span className="font-medium">{searchTerm}</span>"</div>
                   </div>
                 ) : null}
                 
                 {/* Search for exact term option */}
                 {searchTerm.length >= 2 && (
                   <div
-                    className={`p-3 cursor-pointer hover:bg-gray-50 border-t-2 border-gray-200 flex items-center space-x-3 ${
+                    className={`p-4 cursor-pointer hover:bg-gray-50 border-t-2 border-gray-100 flex items-center space-x-3 transition-colors duration-150 ${
                       selectedSuggestion === suggestions.length ? 'bg-yellow-50 border-l-4 border-l-yellow-400' : ''
                     }`}
                     onClick={handleSearch}
                   >
-                    <FaSearch className="text-yellow-600" />
-                    <span className="text-gray-800">
-                      Search for "<strong>{searchTerm}</strong>"
+                    <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <FaSearch className="text-yellow-600 text-sm" />
+                    </div>
+                    <span className="text-gray-800 text-sm">
+                      Search for "<span className="font-semibold">{searchTerm}</span>"
                     </span>
                   </div>
                 )}
@@ -355,12 +357,12 @@ const Navbar = () => {
           {/* Navigation and Icons */}
           <div className="flex items-center space-x-6 md:ml-4">
             <div className="hidden md:flex space-x-6 font-medium">
-              <Link to="/" className="hover:text-yellow-400">Home</Link>
-              <Link to="/shop" className="hover:text-yellow-400">Shop</Link>
-              <Link to="/blog" className="hover:text-yellow-400">Blog</Link>
-              <Link to="/contact" className="hover:text-yellow-400">Contact</Link>
+              <Link to="/" className="hover:text-yellow-400 transition-colors duration-200 py-2">Home</Link>
+              <Link to="/shop" className="hover:text-yellow-400 transition-colors duration-200 py-2">Shop</Link>
+              <Link to="/blog" className="hover:text-yellow-400 transition-colors duration-200 py-2">Blog</Link>
+              <Link to="/contact" className="hover:text-yellow-400 transition-colors duration-200 py-2">Contact</Link>
               {isAdmin() && (
-                <Link to="/admin" className="hover:text-yellow-400 flex items-center space-x-1">
+                <Link to="/admin" className="hover:text-yellow-400 transition-colors duration-200 flex items-center space-x-1 py-2">
                   <FaCog className="text-sm" />
                   <span>Admin</span>
                 </Link>
@@ -373,7 +375,7 @@ const Navbar = () => {
                 <div className="relative">
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center space-x-2 hover:text-yellow-400 cursor-pointer"
+                    className="flex items-center space-x-2 hover:text-yellow-400 cursor-pointer transition-colors duration-200 py-2 px-2 rounded"
                   >
                     {isAdmin() ? (
                       <FaUserShield className="text-yellow-400" />
@@ -386,12 +388,12 @@ const Navbar = () => {
                   </button>
                   
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                      <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                        <div className="font-medium">{user?.username}</div>
-                        <div className="text-xs text-gray-500">{user?.email}</div>
-                        <div className="text-xs">
-                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl py-2 z-50 border border-gray-100">
+                      <div className="px-4 py-3 text-sm text-gray-700 border-b border-gray-100">
+                        <div className="font-semibold text-gray-900">{user?.username}</div>
+                        <div className="text-xs text-gray-500 mt-1">{user?.email}</div>
+                        <div className="mt-2">
+                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
                             isAdmin() 
                               ? 'bg-yellow-100 text-yellow-800' 
                               : 'bg-blue-100 text-blue-800'
@@ -402,27 +404,27 @@ const Navbar = () => {
                       </div>
                       <Link
                         to="/profile"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                        className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors duration-150"
                         onClick={() => setShowUserMenu(false)}
                       >
-                        <FaUser className="mr-2" />
+                        <FaUser className="mr-3" />
                         My Profile
                       </Link>
                       {isAdmin() && (
                         <Link
                           to="/admin"
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                          className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors duration-150"
                           onClick={() => setShowUserMenu(false)}
                         >
-                          <FaCog className="mr-2" />
+                          <FaCog className="mr-3" />
                           Admin Dashboard
                         </Link>
                       )}
                       <button
                         onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                        className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center transition-colors duration-150"
                       >
-                        <FaSignOutAlt className="mr-2" />
+                        <FaSignOutAlt className="mr-3" />
                         Sign Out
                       </button>
                     </div>
@@ -432,28 +434,28 @@ const Navbar = () => {
                 /* Non-authenticated User */
                 <button
                   onClick={() => setShowLogin(true)}
-                  className="hover:text-yellow-400 cursor-pointer flex items-center space-x-1"
+                  className="hover:text-yellow-400 cursor-pointer flex items-center space-x-1 transition-colors duration-200 py-2 px-2 rounded"
                 >
                   <FaUser />
                   <span className="hidden md:inline text-sm font-medium">Sign In</span>
                 </button>
               )}
               
-              <div className="w-px h-4 bg-gray-400"></div>
+              <div className="w-px h-6 bg-gray-400 opacity-50"></div>
               {isAuthenticated ? (
-                <Link to="/profile?tab=wishlist" className="hover:text-yellow-400">
+                <Link to="/profile?tab=wishlist" className="hover:text-yellow-400 transition-colors duration-200 p-2 rounded">
                   <FaHeart />
                 </Link>
               ) : (
-                <FaHeart className="hover:text-yellow-400 cursor-pointer" onClick={() => setShowLogin(true)} />
+                <FaHeart className="hover:text-yellow-400 cursor-pointer transition-colors duration-200 p-2 rounded" onClick={() => setShowLogin(true)} />
               )}
-              <div className="w-px h-4 bg-gray-400"></div>
+              <div className="w-px h-6 bg-gray-400 opacity-50"></div>
               {isAuthenticated ? (
-                <Link to="/profile?tab=cart" className="hover:text-yellow-400">
+                <Link to="/profile?tab=cart" className="hover:text-yellow-400 transition-colors duration-200 p-2 rounded">
                   <FaShoppingCart />
                 </Link>
               ) : (
-                <FaShoppingCart className="hover:text-yellow-400 cursor-pointer" onClick={() => setShowLogin(true)} />
+                <FaShoppingCart className="hover:text-yellow-400 cursor-pointer transition-colors duration-200 p-2 rounded" onClick={() => setShowLogin(true)} />
               )}
             </div>
           </div>
