@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { FaPlus, FaEdit, FaTrash, FaUpload, FaEye, FaBook, FaUsers, FaDollarSign, FaChartLine } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaUpload, FaEye, FaBook, FaUsers, FaDollarSign, FaChartLine, FaStar } from 'react-icons/fa';
 import AdminNavbar from '../components/AdminNavbar';
 import AdminBookTable from '../components/AdminBookTable';
 import AdminAddBook from '../components/AdminAddBook';
+import AdminFeaturedContent from '../components/AdminFeaturedContent';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -110,7 +111,13 @@ const AdminDashboard = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {books.slice(0, 6).map((book) => (
-                <div key={book.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={book.id} className="border border-gray-200 rounded-lg p-4 relative">
+                  {/* Discount Badge */}
+                  {book.is_discount_active && book.discount_percentage > 0 && (
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded z-10">
+                      -{book.discount_percentage}%
+                    </div>
+                  )}
                   <img 
                     src={`http://localhost:3000/${book.image_path}`} 
                     alt={book.title}
@@ -121,7 +128,24 @@ const AdminDashboard = () => {
                   />
                   <h4 className="font-semibold text-sm truncate">{book.title}</h4>
                   <p className="text-xs text-gray-600">{book.author}</p>
-                  <p className="text-sm font-bold text-green-600">${book.price}</p>
+                  {/* Price with Discount Display */}
+                  {book.is_discount_active ? (
+                    <div className="flex flex-col">
+                      <p className="text-sm font-bold text-green-600">
+                        ${book.discounted_price?.toFixed(2)}
+                      </p>
+                      <div className="flex items-center space-x-1">
+                        <p className="line-through text-gray-400 text-xs">
+                          ${book.price}
+                        </p>
+                        <span className="bg-red-100 text-red-800 text-xs px-1 py-0.5 rounded">
+                          -{book.discount_percentage}%
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-bold text-green-600">${book.price}</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -176,6 +200,18 @@ const AdminDashboard = () => {
                 <FaPlus />
                 <span>Add Book</span>
               </button>
+              
+              <button
+                onClick={() => setActiveTab('featured-content')}
+                className={`w-full text-left px-4 py-2 rounded-md flex items-center space-x-3 ${
+                  activeTab === 'featured-content' 
+                    ? 'bg-yellow-400 text-black' 
+                    : 'hover:bg-gray-700'
+                }`}
+              >
+                <FaStar />
+                <span>Featured Content</span>
+              </button>
             </nav>
           </div>
         </div>
@@ -187,6 +223,7 @@ const AdminDashboard = () => {
               {activeTab === 'overview' && 'Dashboard Overview'}
               {activeTab === 'books' && 'Manage Books'}
               {activeTab === 'add-book' && 'Add New Book'}
+              {activeTab === 'featured-content' && 'Featured Content Management'}
             </h1>
           </div>
 
@@ -200,6 +237,9 @@ const AdminDashboard = () => {
           )}
           {activeTab === 'add-book' && (
             <AdminAddBook onBookAdded={fetchBooks} />
+          )}
+          {activeTab === 'featured-content' && (
+            <AdminFeaturedContent />
           )}
         </div>
       </div>

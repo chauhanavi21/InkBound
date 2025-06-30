@@ -6,7 +6,6 @@ import BookCard from '../components/BookCard';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
-const categories = ['Fiction', 'Romance', 'Thriller', 'Science & Technology', 'Non-Fiction'];
 const priceRanges = [
   { label: 'Under $50', min: 0, max: 50 },
   { label: '$50 to $200', min: 50, max: 200 },
@@ -24,16 +23,33 @@ const parsePrice = (price) => {
 const ShoppingPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const query = new URLSearchParams(location.search).get('q')?.toLowerCase() || '';
+  
+  // Get search parameters from URL
+  const urlParams = new URLSearchParams(location.search);
+  const searchParam = urlParams.get('search') || '';
+  const categoryParam = urlParams.get('category') || '';
 
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Filter states
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState(
+    categoryParam ? [categoryParam] : []
+  );
   const [selectedPrice, setSelectedPrice] = useState(null);
-  const [searchTerm, setSearchTerm] = useState(query);
+  const [searchTerm, setSearchTerm] = useState(searchParam);
+
+  // Dynamically generate categories from the loaded book data
+  const availableCategories = React.useMemo(() => {
+    const uniqueCategories = [...new Set(
+      books
+        .map(book => book.genre || book.category)
+        .filter(Boolean)
+    )].sort();
+    console.log('Available categories from data:', uniqueCategories);
+    return uniqueCategories;
+  }, [books]);
 
   useEffect(() => {
     fetchBooks();
@@ -54,29 +70,11 @@ const ShoppingPage = () => {
       console.error('Error fetching books, using static data:', error);
       // Fallback to static data if API fails
       setBooks(staticBooks);
+      console.log('Loaded static books:', staticBooks.length, 'books');
     } finally {
       setLoading(false);
     }
   };
-
-  // Effect to handle direct navigation from search
-  useEffect(() => {
-    if (!searchTerm) return;
-
-    const matchedBook = books.find(
-      (b) =>
-        b.title.toLowerCase() === searchTerm ||
-        b.author.toLowerCase() === searchTerm
-    );
-
-    if (matchedBook) {
-      navigate(`/product/${matchedBook.id}`);
-    } else if (categories.map((c) => c.toLowerCase()).includes(searchTerm)) {
-      setSelectedCategories([capitalize(searchTerm)]);
-    }
-  }, [searchTerm, books]);
-
-  const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
   const handleCategoryChange = (category) => {
     setSelectedCategories((prev) =>
@@ -93,12 +91,22 @@ const ShoppingPage = () => {
   const filteredBooks = books.filter((book) => {
     const price = parsePrice(book.price);
     const bookCategory = book.genre || book.category;
-    const matchCategory =
-      selectedCategories.length === 0 || selectedCategories.includes(bookCategory);
-    const matchPrice =
-      !selectedPrice || (price >= selectedPrice.min && price <= selectedPrice.max);
+    
+    // Handle books without categories - they should show when no category filter is selected
+    const matchCategory = selectedCategories.length === 0 || 
+                         (bookCategory && selectedCategories.includes(bookCategory));
+    
+    const matchPrice = !selectedPrice || (price >= selectedPrice.min && price <= selectedPrice.max);
 
-    return matchCategory && matchPrice;
+    // Add text search functionality
+    const matchSearch = !searchTerm || (
+      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (book.description && book.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (book.genre && book.genre.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    return matchCategory && matchPrice && matchSearch;
   });
 
   if (loading) {
@@ -140,7 +148,25 @@ const ShoppingPage = () => {
     <div className="bg-gray-100 min-h-screen">
       <Navbar />
       <div className="max-w-[96rem] mx-auto px-4 py-10">
-        <h2 className="text-3xl font-bold mb-8">All Books ({filteredBooks.length})</h2>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-3xl font-bold">All Books ({filteredBooks.length})</h2>
+          {searchTerm && (
+            <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg">
+              <span className="text-blue-700">
+                Searching for: <strong>"{searchTerm}"</strong>
+              </span>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  navigate('/shop');
+                }}
+                className="text-blue-600 hover:text-blue-800 ml-2"
+              >
+                ✕ Clear
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-col lg:flex-row gap-10">
           {/* Sidebar Filters */}
           <div className="w-full lg:w-[19%] bg-white p-6 rounded shadow-sm">
@@ -149,17 +175,21 @@ const ShoppingPage = () => {
             <div className="mb-6">
               <h4 className="text-md font-semibold mb-2">Category</h4>
               <div className="space-y-2 text-sm text-gray-700">
-                {categories.map((cat) => (
-                  <div key={cat}>
-                    <input
-                      type="checkbox"
-                      className="mr-2"
-                      checked={selectedCategories.includes(cat)}
-                      onChange={() => handleCategoryChange(cat)}
-                    />
-                    {cat}
-                  </div>
-                ))}
+                {availableCategories.length > 0 ? (
+                  availableCategories.map((cat) => (
+                    <div key={cat}>
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={selectedCategories.includes(cat)}
+                        onChange={() => handleCategoryChange(cat)}
+                      />
+                      {cat}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-500 text-xs">Loading categories...</div>
+                )}
               </div>
             </div>
 
