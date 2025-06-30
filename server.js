@@ -822,6 +822,8 @@ app.use((error, req, res, next) => {
     res.status(500).json({ error: error.message });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Network access: http://[your-ip-address]:${PORT}`);
+    console.log('To find your IP address, run: ipconfig (Windows) or ifconfig (Mac/Linux)');
 }); 
