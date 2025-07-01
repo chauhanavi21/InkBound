@@ -88,6 +88,15 @@ const ShoppingPage = () => {
     setSelectedPrice(range);
   };
 
+  // Helper function to normalize author names for better matching
+  const normalizeAuthorName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/\./g, '') // Remove periods
+      .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+      .trim();
+  };
+
   const filteredBooks = books.filter((book) => {
     const price = parsePrice(book.price);
     const bookCategory = book.genre || book.category;
@@ -98,13 +107,19 @@ const ShoppingPage = () => {
     
     const matchPrice = !selectedPrice || (price >= selectedPrice.min && price <= selectedPrice.max);
 
-    // Add text search functionality
-    const matchSearch = !searchTerm || (
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (book.description && book.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (book.genre && book.genre.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Add text search functionality with improved author name matching
+    const matchSearch = !searchTerm || (() => {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      const normalizedSearchTerm = normalizeAuthorName(searchTerm);
+      
+      return (
+        book.title.toLowerCase().includes(lowerSearchTerm) ||
+        book.author.toLowerCase().includes(lowerSearchTerm) ||
+        normalizeAuthorName(book.author).includes(normalizedSearchTerm) ||
+        (book.description && book.description.toLowerCase().includes(lowerSearchTerm)) ||
+        (book.genre && book.genre.toLowerCase().includes(lowerSearchTerm))
+      );
+    })();
 
     return matchCategory && matchPrice && matchSearch;
   });

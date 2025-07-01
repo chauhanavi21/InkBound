@@ -191,16 +191,29 @@ const AdminFeaturedContent = () => {
     return authors.filter(author => author && author.trim() !== '');
   };
 
+  // Helper function to normalize author names for better matching
+  const normalizeAuthorName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/\./g, '') // Remove periods
+      .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+      .trim();
+  };
+
   const getAvailableBooks = (type) => {
     const featuredBookIds = featuredContent[type]?.map(item => item.book_id) || [];
     let availableBooks = books.filter(book => !featuredBookIds.includes(book.id));
 
-    // Apply search filter
+    // Apply search filter with improved author name matching
     if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      const normalizedSearchTerm = normalizeAuthorName(searchTerm);
+      
       availableBooks = availableBooks.filter(book =>
-        book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        book.genre.toLowerCase().includes(searchTerm.toLowerCase())
+        book.title.toLowerCase().includes(lowerSearchTerm) ||
+        book.author.toLowerCase().includes(lowerSearchTerm) ||
+        normalizeAuthorName(book.author).includes(normalizedSearchTerm) ||
+        book.genre.toLowerCase().includes(lowerSearchTerm)
       );
     }
 

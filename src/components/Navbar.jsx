@@ -58,6 +58,15 @@ const Navbar = () => {
     }
   };
 
+  // Helper function to normalize author names for better matching
+  const normalizeAuthorName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/\./g, '') // Remove periods
+      .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+      .trim();
+  };
+
   const generateSuggestions = (term) => {
     if (!term || term.length < 2) {
       setSuggestions([]);
@@ -65,6 +74,7 @@ const Navbar = () => {
     }
 
     const lowerTerm = term.toLowerCase();
+    const normalizedSearchTerm = normalizeAuthorName(term);
     const suggestions = [];
 
     // Add matching book titles
@@ -79,9 +89,16 @@ const Navbar = () => {
         image: book.image_path || book.images?.[0]
       }));
 
-    // Add matching authors
+    // Add matching authors with improved name matching
     const authorMatches = [...new Set(books
-      .filter(book => book.author.toLowerCase().includes(lowerTerm))
+      .filter(book => {
+        const authorLower = book.author.toLowerCase();
+        const normalizedAuthor = normalizeAuthorName(book.author);
+        
+        // Check both regular and normalized matching
+        return authorLower.includes(lowerTerm) || 
+               normalizedAuthor.includes(normalizedSearchTerm);
+      })
       .map(book => book.author))]
       .slice(0, 3)
       .map(author => ({
@@ -189,6 +206,7 @@ const Navbar = () => {
 
   const handleSearch = () => {
     const term = searchTerm.toLowerCase().trim();
+    const normalizedSearchTerm = normalizeAuthorName(searchTerm);
     setShowSuggestions(false);
     setSelectedSuggestion(-1);
 
@@ -203,12 +221,16 @@ const Navbar = () => {
       return;
     }
 
-    // Check for exact author match
-    const authorMatch = books.find(book => 
-      book.author.toLowerCase() === term
-    );
+    // Check for exact author match with improved name matching - show all books by that author
+    const authorMatch = books.find(book => {
+      const authorLower = book.author.toLowerCase();
+      const normalizedAuthor = normalizeAuthorName(book.author);
+      
+      // Check both exact regular match and exact normalized match
+      return authorLower === term || normalizedAuthor === normalizedSearchTerm;
+    });
     if (authorMatch) {
-      navigate(`/product/${authorMatch.id}`);
+      navigate(`/shop?search=${authorMatch.author}`);
       return;
     }
 
